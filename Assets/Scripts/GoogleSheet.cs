@@ -17,6 +17,7 @@ public class GoogleSheet : CustomYieldInstruction
 
     public bool Success { get { return download.Text != null; } }
 
+#pragma warning disable CS0649 // Fields are set by deserialization
     private class SheetResponse
     {
         public Table table;

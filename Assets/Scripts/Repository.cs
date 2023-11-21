@@ -9,8 +9,11 @@ public static class Repository
 {
     public static string RawJSON;
     public static List<KtaneModule> Modules;
-    public static Dictionary<string, string[]> ProcessedIgnoreLists = new Dictionary<string, string[]>();
+    public static readonly Dictionary<string, string[]> ProcessedIgnoreLists = new Dictionary<string, string[]>(),
+        ProcessedIdIgnoreLists = new Dictionary<string, string[]>();
     public static bool Loaded;
+
+    private static Dictionary<string, string> _moduleIds;
 
     public static IEnumerator LoadData()
     {
@@ -46,6 +49,8 @@ public static class Repository
 
             Modules = JsonConvert.DeserializeObject<WebsiteJSON>(RawJSON).KtaneModules;
         }
+
+        _moduleIds = Modules.ToDictionary(m => m.Name, m => m.ModuleID);
         Loaded = true;
     }
 
@@ -56,13 +61,25 @@ public static class Repository
 
     public class KtaneModule
     {
-        public string Name;
-        public string Quirks = "";
+        public string Name, ModuleID, Quirks = "";
         public List<string> Ignore;
     }
 
     public static IEnumerable<string> ProcessQuirk(string q)
     {
         return Modules.Where(m => m.Quirks.Contains(q)).Select(m => m.Name);
+    }
+
+    public static string ToId(this string module)
+    {
+        return _moduleIds.ContainsKey(module) ? _moduleIds[module] : module;
+    }
+    public static string[] ToIds(this IEnumerable<string> modules)
+    {
+        return modules.Select(ToId).ToArray();
+    }
+    public static bool NameEquals(this string a, string b)
+    {
+        return a.Replace("’", "'") == b.Replace("’", "'");
     }
 }

@@ -3,19 +3,22 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using System.Linq.Expressions;
 using System.Reflection;
-using System.Reflection.Emit;
 using UnityEngine;
+
+// Unused members are either used by reflection or Unity
+#pragma warning disable IDE0051 // Remove unused private members
 
 [RequireComponent(typeof(KMService))]
 public class BMMPlus : MonoBehaviour
 {
     private static bool _harmonied, _isActive, _dataLoaded;
-    private static Harmony _harm;
-    private static HarmonyMethod _transpiler;
-    private static MethodInfo _funcInvoke;
-    private static LambdaExpression _replacement;
+    private static readonly Harmony _harm =
+#if UNITY_EDITOR
+        null;
+#else
+        new Harmony("BDB.BMM+");
+#endif
     private static ModuleData[] _modules;
 
     private void Start()
@@ -24,17 +27,58 @@ public class BMMPlus : MonoBehaviour
         if (_harmonied)
             return;
         StartCoroutine(DownloadData());
+        StartCoroutine(PatchBMM());
+        return;
+    }
+
+    private IEnumerator PatchBMM()
+    {
+        if (_harmonied)
+            yield break;
+
+        GameObject bmm = GameObject.Find("BossModuleManager");
+        while (bmm == null)
+        {
+            yield return null;
+            bmm = GameObject.Find("BossModuleManager");
+        }
+
+        if (_harmonied)
+            yield break;
         _harmonied = true;
-        _transpiler = new HarmonyMethod(typeof(BMMPlus).GetMethod("Transpile", BindingFlags.NonPublic | BindingFlags.Static));
-        _funcInvoke = typeof(Func<string, string[]>).GetMethod("Invoke", BindingFlags.Public | BindingFlags.Instance);
-        ParameterExpression p1 = Expression.Parameter(typeof(Func<string, string[]>), "original"), p2 = Expression.Parameter(typeof(string), "name"), p3 = Expression.Parameter(typeof(MonoBehaviour), "bossModule");
-        _replacement = Expression.Lambda<Func<Func<string, string[]>, string, MonoBehaviour, string[]>>(Expression.Call(typeof(BMMPlus).GetMethod("GetIgnoredModules", BindingFlags.NonPublic | BindingFlags.Static), p1, p2, p3), p1, p2, p3);
-        _harm = new Harmony("BakersDozenBagels.BossModuleManagerPlus");
-        var methods = typeof(Assembly).GetMethods(ReflectionHelper.AllFlags);
-        var method = methods.First(m => m.Name == "Load" && m.GetParameters().Select(pi => pi.ParameterType).SequenceEqual(new Type[] { typeof(byte[]) }));
-        _harm.Patch(method, postfix: new HarmonyMethod(typeof(BMMPlus).GetMethod("AfterAssemblyLoad", BindingFlags.NonPublic | BindingFlags.Static)));
-        foreach (var c in AppDomain.CurrentDomain.GetAssemblies().SelectMany(a => a.GetSafeTypes()).Where(t => t.Name == "KMBossModule"))
-            FixClass(c);
+
+        var comp = bmm.GetComponent<IDictionary<string, object>>();
+        var method = comp.GetType().GetMethod("GetIgnoredModules", BindingFlags.NonPublic | BindingFlags.Instance);
+        _harm.Patch(method, postfix: new HarmonyMethod(typeof(BMMPlus).GetMethod("BMMPostfix", BindingFlags.NonPublic | BindingFlags.Static)));
+    }
+    
+    private static void BMMPostfix(string moduleId, bool ids, ref string[] __result)
+    {
+        if (!_isActive)
+            return;
+        if (!_dataLoaded)
+        {
+            Debug.Log("[BMM++] Got a request for \"" + moduleId + "\"'s ignore list (" + (ids ? "ids" : "names") + "). Unfortuantely, I can't change that list since I don't have any data yet.");
+            return;
+        }
+
+        Debug.Log("[BMM++] Intercepting request for \"" + moduleId + "\"'s ignore list (" + (ids ? "ids)." : "names)."));
+
+        var customMod = _modules.FirstOrDefault(m => m.ID == moduleId || m.Name.NameEquals( moduleId));
+        if (customMod != null)
+        {
+            __result = (ids ? customMod.IdIgnoreList : customMod.IgnoreList).ToArray();
+            return;
+        }
+
+        if (ids && Repository.ProcessedIdIgnoreLists.ContainsKey(moduleId))
+            __result = Repository.ProcessedIdIgnoreLists[moduleId].ToArray();
+        else if (Repository.ProcessedIgnoreLists.ContainsKey(moduleId))
+            __result = Repository.ProcessedIgnoreLists[moduleId].ToArray();
+        else if (ids)
+            __result = Repository.ProcessedIdIgnoreLists[moduleId] = GenerateIgnoreList(Repository.Modules.First(m => m.ModuleID == moduleId || m.Name.NameEquals( moduleId)).Ignore).ToIds().ToArray();
+        else
+            __result = Repository.ProcessedIgnoreLists[moduleId] = GenerateIgnoreList(Repository.Modules.First(m => m.ModuleID == moduleId || m.Name.NameEquals(moduleId)).Ignore).ToArray();
     }
 
     private IEnumerator DownloadData()
@@ -46,8 +90,7 @@ public class BMMPlus : MonoBehaviour
         yield return repo;
 
         _dataLoaded = true;
-        _modules = (from row in sheet.GetRows()
-                    select new ModuleData(row)).ToArray();
+        _modules = sheet.GetRows().Select(row => new ModuleData(row)).ToArray();
 
         Debug.Log("[BMM++] Repositories loaded!");
     }
@@ -55,66 +98,6 @@ public class BMMPlus : MonoBehaviour
     private void OnDestroy()
     {
         _isActive = false;
-    }
-
-    private static void AfterAssemblyLoad(Assembly __result)
-    {
-        try
-        {
-            foreach (var c in __result.GetSafeTypes().Where(t => t.Name == "KMBossModule"))
-                FixClass(c);
-        }
-        // This postfix *cannot* fail in order to maintain stability.
-        catch (Exception e)
-        {
-            Debug.LogError("[BMM++] Fixing a KMBossModule threw an exception! Please report this error to Bagels immediately so this can be resolved. (Gameplay will most likely continue without the ignore list fetch being modified.)");
-            Debug.LogError("[BMM++] The affected assmebly: " + __result.FullName);
-            Debug.LogError(e.Message);
-            Debug.LogError(e.StackTrace);
-        }
-    }
-
-    private static void FixClass(Type c)
-    {
-        var methods = c.GetMethods(ReflectionHelper.AllFlags)
-            .Where(mi => mi.Name == "GetIgnoredModules")
-            .Where(mi => { var ps = mi.GetParameters().Select(pi => pi.ParameterType); return ps.SequenceEqual(new Type[] { typeof(KMBombModule), typeof(string[]) }) || ps.SequenceEqual(new Type[] { typeof(string), typeof(string[]) }); });
-        foreach (var m in methods)
-            FixMethod(m);
-    }
-
-    private static void FixMethod(MethodInfo m)
-    {
-        _harm.Patch(m, transpiler: _transpiler);
-    }
-
-    private static IEnumerable<CodeInstruction> Transpile(IEnumerable<CodeInstruction> il)
-    {
-        foreach (var i in il)
-        {
-            if (i.Calls(_funcInvoke))
-            {
-                yield return new CodeInstruction(OpCodes.Ldarg_0);
-                yield return CodeInstruction.Call(_replacement);
-            }
-            else
-                yield return i;
-        }
-    }
-
-    private static string[] GetIgnoredModules(Func<string, string[]> original, string name, MonoBehaviour bossModule)
-    {
-        if (!_isActive)
-            return original(name);
-
-        var customMod = _modules.FirstOrDefault(m => m.Name == name);
-        if (customMod != null)
-            return customMod.IgnoreList;
-
-        if (Repository.ProcessedIgnoreLists.ContainsKey(name))
-            return Repository.ProcessedIgnoreLists[name];
-        else
-            return Repository.ProcessedIgnoreLists[name] = GenerateIgnoreList(Repository.Modules.FirstOrDefault(m => m.Name == name).Ignore);
     }
 
     private sealed class ModuleData
@@ -142,24 +125,28 @@ public class BMMPlus : MonoBehaviour
             if (row["J"] == "TRUE")
                 Quirks |= Quirks.InstantDeath;
             _rawIgnoreList = row["K"];
+            ID = row["L"];
             _ignoreList = null;
         }
 
-        public string Name;
+        public string Name, ID;
         public Quirks Quirks;
         public string[] IgnoreList
         {
             get
             {
-                if (_ignoreList == null)
-                {
-                    _ignoreList = GenerateIgnoreList(_rawIgnoreList.Split(';').Select(s => s.Trim()));
-                }
-                return _ignoreList;
+                return _ignoreList = _ignoreList ?? GenerateIgnoreList(_rawIgnoreList.Split(';').Select(s => s.Trim()));
             }
         }
-        string[] _ignoreList;
-        string _rawIgnoreList;
+        public string[] IdIgnoreList
+        {
+            get
+            {
+                return _idIgnoreList = _idIgnoreList ?? IgnoreList.ToIds();
+            }
+        }
+        string[] _ignoreList, _idIgnoreList;
+        readonly string _rawIgnoreList;
 
         public bool HasQuirk(string q)
         {
@@ -172,7 +159,7 @@ public class BMMPlus : MonoBehaviour
         var processed = new List<string>();
         foreach (var item in list)
         {
-            if(item.Length == 0)
+            if (item.Length == 0)
                 processed.Add(item);
             else if (item[0] == '+' && item.Length > 1)
             {

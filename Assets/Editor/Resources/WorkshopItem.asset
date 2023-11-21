@@ -13,4 +13,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   WorkshopPublishedFileID: 3049483506
   Title: Boss Module Manager++
-  Tags: []
+  Tags:
+  - Other
