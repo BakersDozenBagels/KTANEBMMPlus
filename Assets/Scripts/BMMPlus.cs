@@ -51,7 +51,7 @@ public class BMMPlus : MonoBehaviour
         var method = comp.GetType().GetMethod("GetIgnoredModules", BindingFlags.NonPublic | BindingFlags.Instance);
         _harm.Patch(method, postfix: new HarmonyMethod(typeof(BMMPlus).GetMethod("BMMPostfix", BindingFlags.NonPublic | BindingFlags.Static)));
     }
-    
+
     private static void BMMPostfix(string moduleId, bool ids, ref string[] __result)
     {
         if (!_isActive)
@@ -64,7 +64,7 @@ public class BMMPlus : MonoBehaviour
 
         Debug.Log("[BMM++] Intercepting request for \"" + moduleId + "\"'s ignore list (" + (ids ? "ids)." : "names)."));
 
-        var customMod = _modules.FirstOrDefault(m => m.ID == moduleId || m.Name.NameEquals( moduleId));
+        var customMod = _modules.FirstOrDefault(m => m.ID == moduleId || m.Name.NameEquals(moduleId));
         if (customMod != null)
         {
             __result = (ids ? customMod.IdIgnoreList : customMod.IgnoreList).ToArray();
@@ -76,7 +76,7 @@ public class BMMPlus : MonoBehaviour
         else if (Repository.ProcessedIgnoreLists.ContainsKey(moduleId))
             __result = Repository.ProcessedIgnoreLists[moduleId].ToArray();
         else if (ids)
-            __result = Repository.ProcessedIdIgnoreLists[moduleId] = GenerateIgnoreList(Repository.Modules.First(m => m.ModuleID == moduleId || m.Name.NameEquals( moduleId)).Ignore).ToIds().ToArray();
+            __result = Repository.ProcessedIdIgnoreLists[moduleId] = GenerateIgnoreList(Repository.Modules.First(m => m.ModuleID == moduleId || m.Name.NameEquals(moduleId)).Ignore).ToIds().ToArray();
         else
             __result = Repository.ProcessedIgnoreLists[moduleId] = GenerateIgnoreList(Repository.Modules.First(m => m.ModuleID == moduleId || m.Name.NameEquals(moduleId)).Ignore).ToArray();
     }
@@ -111,7 +111,7 @@ public class BMMPlus : MonoBehaviour
             if (row["C"] == "TRUE")
                 Quirks |= Quirks.NeedsOtherSolves;
             if (row["D"] == "TRUE")
-                Quirks |= Quirks.MustSolveBeforeSome;
+                Quirks |= Quirks.SolvesBeforeSome;
             if (row["E"] == "TRUE")
                 Quirks |= Quirks.SolvesWithOthers;
             if (row["F"] == "TRUE")
@@ -150,6 +150,11 @@ public class BMMPlus : MonoBehaviour
 
         public bool HasQuirk(string q)
         {
+            if (!Enum.IsDefined(typeof(Quirks), q))
+            {
+                Debug.Log("[BMM++] Found an unhandled quirk type: \"" + q + "\"");
+                return false;
+            }
             return (Quirks & (Quirks)Enum.Parse(typeof(Quirks), q)) != Quirks.None;
         }
     }
@@ -169,7 +174,16 @@ public class BMMPlus : MonoBehaviour
             }
             else if (item[0] == '-')
             {
-                processed.RemoveAt(processed.LastIndexOf(item.Substring(1)));
+                var ix = processed.LastIndexOf(item.Substring(1));
+                if (ix == -1)
+                    ix = processed.LastIndexOf(item.Substring(1).ToOther());
+                if (ix == -1)
+                {
+                    Debug.Log("[BMM++] Failed to remove invalid item \"" + item + "\".");
+                    processed.Add(item);
+                }
+                else
+                    processed.RemoveAt(ix);
             }
             else
                 processed.Add(item);
@@ -183,7 +197,7 @@ public class BMMPlus : MonoBehaviour
         None = 0,
         SolvesAtEnd = 1,
         NeedsOtherSolves = 2,
-        MustSolveBeforeSome = 4,
+        SolvesBeforeSome = 4,
         SolvesWithOthers = 8,
         WillSolveSuddenly = 16,
         PseudoNeedy = 32,

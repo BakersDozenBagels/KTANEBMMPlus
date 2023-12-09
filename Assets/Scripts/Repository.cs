@@ -13,7 +13,7 @@ public static class Repository
         ProcessedIdIgnoreLists = new Dictionary<string, string[]>();
     public static bool Loaded;
 
-    private static Dictionary<string, string> _moduleIds;
+    private static Dictionary<string, string> _moduleIds, _moduleNames;
 
     public static IEnumerator LoadData()
     {
@@ -51,6 +51,7 @@ public static class Repository
         }
 
         _moduleIds = Modules.ToDictionary(m => m.Name, m => m.ModuleID);
+        _moduleIds = Modules.ToDictionary(m => m.ModuleID, m => m.Name);
         Loaded = true;
     }
 
@@ -70,6 +71,12 @@ public static class Repository
         return Modules.Where(m => m.Quirks.Contains(q)).Select(m => m.Name);
     }
 
+    public static string ToOther(this string module)
+    {
+        return _moduleIds.ContainsKey(module) ? _moduleIds[module] :
+            _moduleNames.ContainsKey(module) ? _moduleNames[module] :
+            null;
+    }
     public static string ToId(this string module)
     {
         return _moduleIds.ContainsKey(module) ? _moduleIds[module] : module;
