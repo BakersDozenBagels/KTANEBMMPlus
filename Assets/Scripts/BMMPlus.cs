@@ -75,10 +75,16 @@ public class BMMPlus : MonoBehaviour
             __result = Repository.ProcessedIdIgnoreLists[moduleId].ToArray();
         else if (!ids && Repository.ProcessedIgnoreLists.ContainsKey(moduleId))
             __result = Repository.ProcessedIgnoreLists[moduleId].ToArray();
-        else if (ids)
-            __result = (Repository.ProcessedIdIgnoreLists[moduleId] = GenerateIgnoreList(Repository.Modules.First(m => m.ModuleID == moduleId || m.Name.NameEquals(moduleId)).Ignore).ToIds()).ToArray();
         else
-            __result = (Repository.ProcessedIgnoreLists[moduleId] = GenerateIgnoreList(Repository.Modules.First(m => m.ModuleID == moduleId || m.Name.NameEquals(moduleId)).Ignore)).ToArray();
+        {
+            var module = Repository.Modules.FirstOrDefault(m => m.ModuleID.EqualsIgnoreCase(moduleId) || m.Name.NameEquals(moduleId));
+            if(module == null)
+                Debug.LogError("[BMM++] That module wasn't found!");
+            else if (ids)
+                __result = (Repository.ProcessedIdIgnoreLists[moduleId] = GenerateIgnoreList(module.Ignore.ToIds())).ToArray();
+            else
+                __result = (Repository.ProcessedIgnoreLists[moduleId] = GenerateIgnoreList(module.Ignore)).ToArray();
+        }
     }
 
     private IEnumerator DownloadData()
