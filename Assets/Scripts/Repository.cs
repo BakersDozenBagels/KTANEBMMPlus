@@ -73,13 +73,15 @@ public static class Repository
 
     public static string ToOther(this string module)
     {
-        return _moduleIds.ContainsKey(module) ? _moduleIds[module] :
-            _moduleNames.ContainsKey(module) ? _moduleNames[module] :
+        string tmp;
+        return _moduleIds.TryGetValue(module, out tmp) ? tmp :
+            _moduleNames.TryGetValue(module, out tmp) ? tmp :
             null;
     }
     public static string ToId(this string module)
     {
-        return _moduleIds.ContainsKey(module) ? _moduleIds[module] : module;
+        string id;
+        return _moduleIds.TryGetValue(module, out id) ? module : id;
     }
     public static string[] ToIds(this IEnumerable<string> modules)
     {
