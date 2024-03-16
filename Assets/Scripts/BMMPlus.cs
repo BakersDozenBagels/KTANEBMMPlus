@@ -58,7 +58,7 @@ public class BMMPlus : MonoBehaviour
             return;
         if (!_dataLoaded)
         {
-            Debug.Log("[BMM++] Got a request for \"" + moduleId + "\"'s ignore list (" + (ids ? "ids" : "names") + "). Unfortuantely, I can't change that list since I don't have any data yet.");
+            Debug.Log("[BMM++] Got a request for \"" + moduleId + "\"'s ignore list (" + (ids ? "ids" : "names") + "). Unfortunately, I can't change that list since I don't have any data yet.");
             return;
         }
 
