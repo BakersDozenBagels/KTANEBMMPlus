@@ -80,6 +80,8 @@ public class BMMPlus : MonoBehaviour
             var module = Repository.Modules.FirstOrDefault(m => m.ModuleID.EqualsIgnoreCase(moduleId) || m.Name.NameEquals(moduleId));
             if(module == null)
                 Debug.LogError("[BMM++] That module wasn't found!");
+            else if (module.Ignore == null)
+                Debug.LogError("[BMM++] That module doesn't have an ignore list.");
             else if (ids)
                 __result = (Repository.ProcessedIdIgnoreLists[moduleId] = GenerateIgnoreList(module.Ignore.ToIds())).ToArray();
             else
