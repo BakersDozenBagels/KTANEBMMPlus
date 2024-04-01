@@ -21,6 +21,6 @@ MonoBehaviour:
     Data: https://docs.google.com/spreadsheets/d/18AuWZszwsNyDNgYtqV879pjEgk8WItqmsM0pL0a1OkM/edit#gid=0
 
     Source: https://github.com/BakersDozenBagels/KTANEBMMPlus'
-  version: 1.5
+  version: 1.6
   outputFolder: build
   previewImage: {fileID: 2800000, guid: f0221969090c56443a3de92dfffc3462, type: 3}

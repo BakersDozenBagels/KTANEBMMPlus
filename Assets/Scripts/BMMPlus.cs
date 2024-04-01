@@ -71,21 +71,22 @@ public class BMMPlus : MonoBehaviour
             return;
         }
 
-        if (ids && Repository.ProcessedIdIgnoreLists.ContainsKey(moduleId))
-            __result = Repository.ProcessedIdIgnoreLists[moduleId].ToArray();
-        else if (!ids && Repository.ProcessedIgnoreLists.ContainsKey(moduleId))
-            __result = Repository.ProcessedIgnoreLists[moduleId].ToArray();
+        string[] list;
+        if (ids && Repository.ProcessedIdIgnoreLists.TryGetValue(moduleId, out list))
+            __result = list.ToArray();
+        else if (!ids && Repository.ProcessedIgnoreLists.TryGetValue(moduleId, out list))
+            __result = list.ToArray();
         else
         {
             var module = Repository.Modules.FirstOrDefault(m => m.ModuleID.EqualsIgnoreCase(moduleId) || m.Name.NameEquals(moduleId));
-            if(module == null)
+            if (module == null)
                 Debug.LogError("[BMM++] That module wasn't found!");
             else if (module.Ignore == null)
                 Debug.LogError("[BMM++] That module doesn't have an ignore list.");
             else if (ids)
-                __result = (Repository.ProcessedIdIgnoreLists[moduleId] = GenerateIgnoreList(module.Ignore.ToIds())).ToArray();
+                __result = (Repository.ProcessedIdIgnoreLists[moduleId] = GenerateIgnoreList(module.Ignore, module.Name).ToIds()).ToArray();
             else
-                __result = (Repository.ProcessedIgnoreLists[moduleId] = GenerateIgnoreList(module.Ignore)).ToArray();
+                __result = (Repository.ProcessedIgnoreLists[moduleId] = GenerateIgnoreList(module.Ignore, module.Name)).ToArray();
         }
     }
 
@@ -133,8 +134,10 @@ public class BMMPlus : MonoBehaviour
             if (row["J"] == "TRUE")
                 Quirks |= Quirks.InstantDeath;
             _rawIgnoreList = row["K"];
+            _rawIgnoredByList = row["M"];
             ID = row["L"];
             _ignoreList = null;
+            IgnoredByList = _rawIgnoredByList.Split(';').Select(s => s.Trim()).ToArray();
         }
 
         public string Name, ID;
@@ -143,7 +146,7 @@ public class BMMPlus : MonoBehaviour
         {
             get
             {
-                return _ignoreList = _ignoreList ?? GenerateIgnoreList(_rawIgnoreList.Split(';').Select(s => s.Trim()));
+                return _ignoreList = _ignoreList ?? GenerateIgnoreList(_rawIgnoreList.Split(';').Select(s => s.Trim()), Name);
             }
         }
         public string[] IdIgnoreList
@@ -153,8 +156,9 @@ public class BMMPlus : MonoBehaviour
                 return _idIgnoreList = _idIgnoreList ?? IgnoreList.ToIds();
             }
         }
+        public string[] IgnoredByList { get; private set; }
         string[] _ignoreList, _idIgnoreList;
-        readonly string _rawIgnoreList;
+        readonly string _rawIgnoreList, _rawIgnoredByList;
 
         public bool HasQuirk(string q)
         {
@@ -167,7 +171,7 @@ public class BMMPlus : MonoBehaviour
         }
     }
 
-    private static string[] GenerateIgnoreList(IEnumerable<string> list)
+    private static string[] GenerateIgnoreList(IEnumerable<string> list, string name)
     {
         var processed = new List<string>();
         foreach (var item in list)
@@ -196,7 +200,9 @@ public class BMMPlus : MonoBehaviour
             else
                 processed.Add(item);
         }
-        return processed.ToArray();
+        return processed
+            .Concat(_modules.Where(m => m.IgnoredByList.Contains(name)).Select(m => m.Name))
+            .ToArray();
     }
 
     [Flags]
