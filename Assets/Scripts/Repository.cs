@@ -51,7 +51,7 @@ public static class Repository
         }
 
         _moduleIds = Modules.ToDictionary(m => m.Name, m => m.ModuleID);
-        _moduleIds = Modules.ToDictionary(m => m.ModuleID, m => m.Name);
+        _moduleNames = Modules.ToDictionary(m => m.ModuleID, m => m.Name);
         Loaded = true;
     }
 
@@ -81,7 +81,7 @@ public static class Repository
     public static string ToId(this string module)
     {
         string id;
-        return _moduleIds.TryGetValue(module, out id) ? module : id;
+        return _moduleIds.TryGetValue(module, out id) ? id : module;
     }
     public static string[] ToIds(this IEnumerable<string> modules)
     {

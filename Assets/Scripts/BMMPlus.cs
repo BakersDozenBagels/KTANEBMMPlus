@@ -68,6 +68,7 @@ public class BMMPlus : MonoBehaviour
         if (customMod != null)
         {
             __result = (ids ? customMod.IdIgnoreList : customMod.IgnoreList).ToArray();
+            Debug.Log("[BMM++] Overriding ignore list.");
             return;
         }
 
