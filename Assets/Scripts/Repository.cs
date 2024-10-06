@@ -91,4 +91,10 @@ public static class Repository
     {
         return a.Replace("’", "'") == b.Replace("’", "'");
     }
+
+    public static void AddLookup(string name, string id)
+    {
+        _moduleIds[name] = id;
+        _moduleNames[id] = name;
+    }
 }

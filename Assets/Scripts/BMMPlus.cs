@@ -99,8 +99,11 @@ public class BMMPlus : MonoBehaviour
         yield return sheet;
         yield return repo;
 
-        _dataLoaded = true;
         _modules = sheet.GetRows().Select(row => new ModuleData(row)).ToArray();
+        foreach (var module in _modules)
+            Repository.AddLookup(module.Name, module.ID);
+
+        _dataLoaded = true;
 
         Debug.Log("[BMM++] Repositories loaded!");
     }
